@@ -15,31 +15,43 @@
 <body>
   <main class="app">
     <section class="timer" aria-label="ビジュアルタイマー">
-      <div id="dial" class="dial" role="slider" tabindex="0" aria-label="時間設定" aria-valuemin="1" aria-valuemax="60" aria-valuenow="15">
+      <div id="dial" class="dial" role="slider" tabindex="0" aria-label="時間設定" aria-valuemin="0" aria-valuemax="60" aria-valuenow="0">
         <svg id="clock" viewBox="0 0 400 400" aria-hidden="true">
-          <circle class="face" cx="200" cy="200" r="190"/>
+          <defs>
+            <linearGradient id="caseGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#d49caf"/>
+              <stop offset="1" stop-color="#e4bdc9"/>
+            </linearGradient>
+            <linearGradient id="knobGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#ffffff"/>
+              <stop offset="1" stop-color="#ececea"/>
+            </linearGradient>
+          </defs>
+          <rect class="case" x="7" y="7" width="386" height="386" rx="76"/>
+          <rect class="face" x="29" y="29" width="342" height="342" rx="58"/>
           <path id="redSector" class="sector"/>
+          <line id="zeroLine" class="zero-line" x1="200" y1="200" x2="200" y2="84"/>
+          <circle id="redTip" class="sector-tip" cx="200" cy="84" r="7"/>
           <g id="ticks"></g>
           <g id="numbers"></g>
-          <circle class="hub-shadow" cx="200" cy="200" r="27"/>
-          <circle class="hub" cx="200" cy="200" r="23"/>
-          <circle class="hub-dot" cx="200" cy="200" r="4"/>
+          <circle class="hub-shadow" cx="202" cy="203" r="20"/>
+          <circle class="hub" cx="200" cy="200" r="19"/>
         </svg>
       </div>
 
       <div class="readout" aria-live="polite">
-        <span id="timeText">15:00</span>
-        <span id="stateText" class="state">15分</span>
+        <span id="timeText">00:00</span>
+        <span id="stateText" class="state">0分</span>
       </div>
 
       <div class="adjust" aria-label="時間を調整">
         <button id="minus" class="round secondary" type="button" aria-label="1分減らす">−</button>
-        <span id="minutesText">15分</span>
+        <span id="minutesText">0分</span>
         <button id="plus" class="round secondary" type="button" aria-label="1分増やす">＋</button>
       </div>
 
       <div class="controls">
-        <button id="startPause" class="primary" type="button">スタート</button>
+        <button id="startPause" class="primary" type="button" disabled>スタート</button>
         <button id="reset" class="secondary reset" type="button">リセット</button>
       </div>
       <p class="hint">文字盤をタップ、または針の方向へなぞって時間を設定</p>

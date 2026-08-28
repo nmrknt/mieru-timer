@@ -45,16 +45,18 @@ button { font: inherit; }
 
 .dial:focus-visible { outline: 4px solid #1677d2; outline-offset: 5px; border-radius: 50%; }
 #clock { width: 100%; height: 100%; overflow: visible; }
-.face { fill: #fffefa; stroke: #bbb5a9; stroke-width: 3; }
-.sector { fill: #df202a; }
-.tick { stroke: #292621; stroke-linecap: round; }
-.tick.minor { stroke-width: 2; opacity: .72; }
-.tick.major { stroke-width: 4; }
-.number { fill: #26231e; font-size: 21px; font-weight: 700; text-anchor: middle; dominant-baseline: central; }
-.zero { font-size: 17px; }
+.case { fill: url(#caseGradient); }
+.face { fill: #fafbfc; stroke: #c9c6c8; stroke-width: .8; }
+.sector { fill: #e53730; }
+.sector-tip { fill: #e53730; }
+.zero-line { stroke: #e53730; stroke-width: 2; }
+.tick { stroke-linecap: square; }
+.tick.minor { stroke: #6f7075; stroke-width: 1.2; }
+.tick.major { stroke: #bf6d8b; stroke-width: 2; }
+.number { fill: #535459; font-family: Arial, "Helvetica Neue", sans-serif; font-size: 39px; font-weight: 400; text-anchor: middle; dominant-baseline: central; }
+.zero { font-size: 39px; }
 .hub-shadow { fill: rgba(0,0,0,.16); transform: translate(1px, 3px); }
-.hub { fill: #fffefa; stroke: #aaa49a; stroke-width: 2.5; }
-.hub-dot { fill: #d9d4ca; }
+.hub { fill: url(#knobGradient); stroke: #d3d3cf; stroke-width: .8; }
 
 .readout { margin-top: 8px; text-align: center; min-height: 52px; }
 #timeText { display: block; font-size: clamp(28px, 8vw, 40px); line-height: 1; font-weight: 750; font-variant-numeric: tabular-nums; letter-spacing: .03em; }
