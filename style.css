@@ -1,0 +1,85 @@
+:root {
+  color-scheme: light;
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+  background: #f5f1e8;
+  color: #24211d;
+  -webkit-tap-highlight-color: transparent;
+}
+
+* { box-sizing: border-box; }
+
+html, body { min-height: 100%; margin: 0; }
+
+body {
+  min-height: 100dvh;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255,255,255,.9), transparent 38%),
+    #f5f1e8;
+}
+
+button { font: inherit; }
+
+.app {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: max(16px, env(safe-area-inset-top)) 18px max(18px, env(safe-area-inset-bottom));
+}
+
+.timer {
+  width: min(100%, 520px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.dial {
+  width: min(88vw, 56vh, 440px);
+  aspect-ratio: 1;
+  filter: drop-shadow(0 8px 14px rgba(64, 51, 34, .18));
+  touch-action: none;
+  user-select: none;
+}
+
+.dial:focus-visible { outline: 4px solid #1677d2; outline-offset: 5px; border-radius: 50%; }
+#clock { width: 100%; height: 100%; overflow: visible; }
+.face { fill: #fffefa; stroke: #bbb5a9; stroke-width: 3; }
+.sector { fill: #df202a; }
+.tick { stroke: #292621; stroke-linecap: round; }
+.tick.minor { stroke-width: 2; opacity: .72; }
+.tick.major { stroke-width: 4; }
+.number { fill: #26231e; font-size: 21px; font-weight: 700; text-anchor: middle; dominant-baseline: central; }
+.zero { font-size: 17px; }
+.hub-shadow { fill: rgba(0,0,0,.16); transform: translate(1px, 3px); }
+.hub { fill: #fffefa; stroke: #aaa49a; stroke-width: 2.5; }
+.hub-dot { fill: #d9d4ca; }
+
+.readout { margin-top: 8px; text-align: center; min-height: 52px; }
+#timeText { display: block; font-size: clamp(28px, 8vw, 40px); line-height: 1; font-weight: 750; font-variant-numeric: tabular-nums; letter-spacing: .03em; }
+.state { display: block; margin-top: 5px; font-size: 13px; color: #716b62; }
+
+.adjust { display: flex; align-items: center; gap: 20px; margin: 13px 0 15px; }
+#minutesText { width: 64px; text-align: center; font-size: 17px; font-weight: 700; }
+button { border: 0; cursor: pointer; -webkit-user-select: none; user-select: none; }
+button:active { transform: scale(.96); }
+button:disabled { opacity: .4; cursor: default; }
+.round { width: 46px; height: 46px; border-radius: 50%; font-size: 27px; line-height: 1; }
+.controls { display: grid; grid-template-columns: 1fr auto; gap: 10px; width: min(100%, 340px); }
+.primary, .reset { min-height: 52px; border-radius: 16px; font-weight: 750; font-size: 17px; padding: 0 22px; }
+.primary { color: white; background: #197342; box-shadow: 0 4px 8px rgba(25,115,66,.22); }
+.primary.running { background: #d37b00; }
+.secondary { color: #34302a; background: #e8e2d8; box-shadow: inset 0 0 0 1px #d1c9bd; }
+.hint { margin: 13px 0 0; max-width: 320px; text-align: center; color: #777066; font-size: 12px; line-height: 1.5; }
+
+@media (max-height: 670px) {
+  .dial { width: min(76vw, 49vh, 360px); }
+  .readout { margin-top: 4px; min-height: 44px; }
+  .adjust { margin: 7px 0 9px; }
+  .hint { display: none; }
+}
+
+@media (display-mode: standalone) {
+  body { user-select: none; }
+}
