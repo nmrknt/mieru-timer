@@ -22,6 +22,7 @@
   let endAt = 0;
   let frame = 0;
   let audioContext = null;
+  let audioKeepAlive = null;
   let wakeLock = null;
   let dragging = false;
   let hasStarted = false;
@@ -150,7 +151,34 @@
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (!AudioCtx) return;
     audioContext ||= new AudioCtx();
-    if (audioContext.state === 'suspended') await audioContext.resume();
+    if (audioContext.state !== 'running') await audioContext.resume();
+
+    // iOSのホーム画面版では、長時間無音だとAudioContextが再び休止する
+    // ことがあるため、ユーザー操作中に短い無音を再生して確実に解除する。
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    gain.gain.value = 0.0001;
+    oscillator.connect(gain).connect(audioContext.destination);
+    oscillator.start();
+    oscillator.stop(audioContext.currentTime + .02);
+  }
+
+  function startAudioKeepAlive() {
+    if (!audioContext || audioContext.state !== 'running' || audioKeepAlive) return;
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    gain.gain.value = 0.0001;
+    oscillator.connect(gain).connect(audioContext.destination);
+    oscillator.start();
+    audioKeepAlive = { oscillator, gain };
+  }
+
+  function stopAudioKeepAlive() {
+    if (!audioKeepAlive) return;
+    try { audioKeepAlive.oscillator.stop(); } catch (_) {}
+    audioKeepAlive.oscillator.disconnect();
+    audioKeepAlive.gain.disconnect();
+    audioKeepAlive = null;
   }
 
   function beep(start, frequency = 1240) {
@@ -167,8 +195,13 @@
     oscillator.start(start); oscillator.stop(start + .12);
   }
 
-  function beepThreeTimes() {
+  async function beepThreeTimes() {
     if (!audioContext) return;
+    try {
+      if (audioContext.state !== 'running') await audioContext.resume();
+    } catch (_) {}
+    stopAudioKeepAlive();
+    if (audioContext.state !== 'running') return;
     const now = audioContext.currentTime + .04;
     [0, .16, .32, .82, .98, 1.14, 1.64, 1.80, 1.96].forEach(offset => beep(now + offset));
     if (navigator.vibrate) navigator.vibrate([90,70,90,70,90,400,90,70,90,70,90,400,90,70,90,70,90]);
@@ -193,10 +226,12 @@
     if (running) {
       hasStarted = true;
       endAt = performance.now() + remainingMs;
+      startAudioKeepAlive();
       acquireWakeLock();
       tick();
     } else {
       remainingMs = Math.max(0, endAt - performance.now());
+      stopAudioKeepAlive();
       releaseWakeLock();
       render();
     }
@@ -205,6 +240,7 @@
   function doReset() {
     running = false;
     cancelAnimationFrame(frame);
+    stopAudioKeepAlive();
     releaseWakeLock();
     selectedMinutes = 0;
     remainingMs = 0;
