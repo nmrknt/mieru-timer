@@ -73,6 +73,8 @@ button:disabled { opacity: .4; cursor: default; }
 .primary { color: white; background: #197342; box-shadow: 0 4px 8px rgba(25,115,66,.22); }
 .primary.running { background: #d37b00; }
 .secondary { color: #34302a; background: #e8e2d8; box-shadow: inset 0 0 0 1px #d1c9bd; }
+.alarm-setting { display: flex; align-items: center; justify-content: space-between; width: min(100%, 340px); margin-top: 12px; color: #5f594f; font-size: 14px; font-weight: 650; }
+.alarm-setting select { min-width: 88px; min-height: 40px; padding: 0 28px 0 13px; border: 1px solid #d1c9bd; border-radius: 12px; background: #fffdf9; color: #34302a; font: inherit; }
 .hint { margin: 13px 0 0; max-width: 320px; text-align: center; color: #777066; font-size: 12px; line-height: 1.5; }
 .pwa-guide {
   width: min(100%, 360px);

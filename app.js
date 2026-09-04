@@ -15,6 +15,7 @@
   const plus = document.querySelector('#plus');
   const startPause = document.querySelector('#startPause');
   const reset = document.querySelector('#reset');
+  const alarmRepeat = document.querySelector('#alarmRepeat');
 
   let selectedMinutes = 0;
   let remainingMs = selectedMinutes * 60_000;
@@ -101,7 +102,7 @@
     cancelAnimationFrame(frame);
     releaseWakeLock();
     render();
-    beepThreeTimes();
+    beepRepeated();
   }
 
   function adjustMinutes(delta) {
@@ -195,7 +196,7 @@
     oscillator.start(start); oscillator.stop(start + .12);
   }
 
-  async function beepThreeTimes() {
+  async function beepRepeated() {
     if (!audioContext) return;
     try {
       if (audioContext.state !== 'running') await audioContext.resume();
@@ -203,8 +204,17 @@
     stopAudioKeepAlive();
     if (audioContext.state !== 'running') return;
     const now = audioContext.currentTime + .04;
-    [0, .16, .32, .82, .98, 1.14, 1.64, 1.80, 1.96].forEach(offset => beep(now + offset));
-    if (navigator.vibrate) navigator.vibrate([90,70,90,70,90,400,90,70,90,70,90,400,90,70,90,70,90]);
+    const repeatCount = Number(alarmRepeat.value);
+    const beepOffsets = [];
+    const vibrationPattern = [];
+    for (let repeat = 0; repeat < repeatCount; repeat++) {
+      const groupStart = repeat * .82;
+      beepOffsets.push(groupStart, groupStart + .16, groupStart + .32);
+      if (repeat > 0) vibrationPattern.push(400);
+      vibrationPattern.push(90, 70, 90, 70, 90);
+    }
+    beepOffsets.forEach(offset => beep(now + offset));
+    if (navigator.vibrate) navigator.vibrate(vibrationPattern);
   }
 
   async function acquireWakeLock() {
@@ -265,6 +275,9 @@
   plus.addEventListener('click', () => adjustMinutes(1));
   startPause.addEventListener('click', toggleTimer);
   reset.addEventListener('click', doReset);
+  alarmRepeat.addEventListener('change', () => {
+    try { localStorage.setItem('alarmRepeat', alarmRepeat.value); } catch (_) {}
+  });
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && running) {
       remainingMs = Math.max(0, endAt - performance.now());
@@ -278,6 +291,10 @@
   });
 
   drawFace();
+  try {
+    const savedRepeat = localStorage.getItem('alarmRepeat');
+    if (savedRepeat && alarmRepeat.querySelector(`option[value="${savedRepeat}"]`)) alarmRepeat.value = savedRepeat;
+  } catch (_) {}
   render();
   if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
 })();
