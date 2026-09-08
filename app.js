@@ -397,7 +397,7 @@
     const safari = /Safari/.test(navigator.userAgent) && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(navigator.userAgent);
     const iphoneSafari = appleMobile && safari;
     pwaGuide.hidden = standalone || !iphoneSafari;
-    shareTools.hidden = !standalone && iphoneSafari;
+    shareTools.hidden = false;
   }
 
   function showShareFeedback(message) {

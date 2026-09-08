@@ -1,4 +1,4 @@
-const CACHE = 'mieru-timer-v16';
+const CACHE = 'mieru-timer-v17';
 const FILES = ['./', './index.html', './style.css', './app.js', './manifest.webmanifest', './og-image.png', './icons/icon-180-v2.png', './icons/icon-192-v2.png', './icons/icon-512-v2.png'];
 
 self.addEventListener('install', event => {
