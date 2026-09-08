@@ -2,6 +2,11 @@
   'use strict';
 
   const TOTAL_SECONDS = 60 * 60;
+  const TOTAL_MS = TOTAL_SECONDS * 1000;
+  const TIMER_STORAGE_KEY = 'mieruTimerState';
+  const TIMER_STORAGE_VERSION = 1;
+  const PUBLIC_URL = 'https://nmrknt.github.io/mieru-timer/';
+  const VALID_STATES = new Set(['idle', 'running', 'paused', 'finished']);
   const dial = document.querySelector('#dial');
   const sector = document.querySelector('#redSector');
   const redTip = document.querySelector('#redTip');
@@ -16,17 +21,26 @@
   const startPause = document.querySelector('#startPause');
   const reset = document.querySelector('#reset');
   const alarmRepeat = document.querySelector('#alarmRepeat');
+  const previewAlarm = document.querySelector('#previewAlarm');
+  const pwaGuide = document.querySelector('#pwaGuide');
+  const shareTools = document.querySelector('#shareTools');
+  const shareButton = document.querySelector('#shareButton');
+  const shareFeedback = document.querySelector('#shareFeedback');
 
   let selectedMinutes = 0;
   let remainingMs = selectedMinutes * 60_000;
   let running = false;
+  let timerState = 'idle';
   let endAt = 0;
+  let endAtEpochMs = 0;
   let frame = 0;
   let audioContext = null;
   let audioKeepAlive = null;
   let wakeLock = null;
   let dragging = false;
   let hasStarted = false;
+  let previewTimeout = 0;
+  let shareFeedbackTimeout = 0;
 
   const point = (angle, radius) => {
     const radians = (angle - 90) * Math.PI / 180;
@@ -65,6 +79,43 @@
     return `M 200 200 L 200 84 A 116 116 0 ${angle > 180 ? 1 : 0} 1 ${end.x} ${end.y} Z`;
   }
 
+  function saveTimerState() {
+    const now = Date.now();
+    const savedRemainingMs = running ? Math.max(0, endAt - performance.now()) : remainingMs;
+    if (running) endAtEpochMs = now + savedRemainingMs;
+    const data = {
+      version: TIMER_STORAGE_VERSION,
+      state: timerState,
+      selectedMinutes,
+      remainingMs: savedRemainingMs,
+      endAtEpochMs: running ? endAtEpochMs : null,
+      savedAtEpochMs: now
+    };
+    try { localStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify(data)); } catch (_) {}
+  }
+
+  function readSavedTimerState() {
+    try {
+      const data = JSON.parse(localStorage.getItem(TIMER_STORAGE_KEY));
+      if (!data || data.version !== TIMER_STORAGE_VERSION || !VALID_STATES.has(data.state)) return null;
+      if (!Number.isInteger(data.selectedMinutes) || data.selectedMinutes < 0 || data.selectedMinutes > 60) return null;
+      if (!Number.isFinite(data.remainingMs) || data.remainingMs < 0 || data.remainingMs > TOTAL_MS) return null;
+      if (!Number.isFinite(data.savedAtEpochMs) || data.savedAtEpochMs <= 0 || data.savedAtEpochMs > Date.now() + 300_000) return null;
+      if (data.state === 'idle' && data.remainingMs !== data.selectedMinutes * 60_000) return null;
+      if ((data.state === 'running' || data.state === 'paused' || data.state === 'finished') && data.selectedMinutes === 0) return null;
+      if (data.state === 'paused' && data.remainingMs <= 0) return null;
+      if (data.state === 'finished' && data.remainingMs !== 0) return null;
+      if (data.state === 'running') {
+        if (!Number.isFinite(data.endAtEpochMs) || data.endAtEpochMs <= 0) return null;
+        if (data.endAtEpochMs < data.savedAtEpochMs) return null;
+        if (data.endAtEpochMs - data.savedAtEpochMs > TOTAL_MS + 1000) return null;
+      }
+      return data;
+    } catch (_) {
+      return null;
+    }
+  }
+
   function render() {
     const seconds = Math.max(0, remainingMs / 1000);
     sector.setAttribute('d', sectorPath(seconds));
@@ -82,27 +133,34 @@
     dial.setAttribute('aria-valuetext', `${selectedMinutes}分`);
     minus.disabled = remainingMs <= 0;
     plus.disabled = remainingMs >= TOTAL_SECONDS * 1000;
-    startPause.textContent = running ? '一時停止' : (remainingMs < selectedMinutes * 60_000 && remainingMs > 0 ? '再開' : 'スタート');
+    startPause.textContent = running ? '一時停止' : (timerState === 'paused' ? '再開' : 'スタート');
     startPause.classList.toggle('running', running);
     startPause.disabled = selectedMinutes === 0;
-    stateText.textContent = running ? '残り時間' : (selectedMinutes === 0 ? '0分' : (remainingMs === 0 ? 'おしまい' : `${selectedMinutes}分`));
+    stateText.textContent = running ? '残り時間' : (timerState === 'paused' ? '一時停止' : (timerState === 'finished' ? 'おしまい' : `${selectedMinutes}分`));
   }
 
   function setMinutes(value) {
     if (running) return;
     hasStarted = false;
+    timerState = 'idle';
     selectedMinutes = Math.min(60, Math.max(0, Math.round(value)));
     remainingMs = selectedMinutes * 60_000;
     render();
+    saveTimerState();
   }
 
-  function finishTimer() {
+  function finishTimer({ notify = true } = {}) {
     running = false;
+    timerState = 'finished';
     remainingMs = 0;
+    endAt = 0;
+    endAtEpochMs = 0;
     cancelAnimationFrame(frame);
+    stopAudioKeepAlive();
     releaseWakeLock();
     render();
-    beepRepeated();
+    saveTimerState();
+    if (notify) playAlarm({ vibrate: true });
   }
 
   function adjustMinutes(delta) {
@@ -113,18 +171,27 @@
       if (!hasStarted) {
         selectedMinutes = 0;
         remainingMs = 0;
+        timerState = 'idle';
         render();
+        saveTimerState();
         return;
       }
       finishTimer();
       return;
     }
 
-    if (currentMs <= 0 && delta > 0) hasStarted = false;
+    if (currentMs <= 0 && delta > 0) {
+      hasStarted = false;
+      timerState = 'idle';
+    }
     remainingMs = adjustedMs;
     selectedMinutes = Math.ceil(remainingMs / 60_000);
-    if (running) endAt = performance.now() + remainingMs;
+    if (running) {
+      endAt = performance.now() + remainingMs;
+      endAtEpochMs = Date.now() + remainingMs;
+    }
     render();
+    saveTimerState();
   }
 
   function minuteFromPointer(event) {
@@ -150,18 +217,23 @@
 
   async function primeAudio() {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return;
-    audioContext ||= new AudioCtx();
-    if (audioContext.state !== 'running') await audioContext.resume();
+    if (!AudioCtx) return false;
+    try {
+      audioContext ||= new AudioCtx();
+      if (audioContext.state !== 'running') await audioContext.resume();
 
-    // iOSのホーム画面版では、長時間無音だとAudioContextが再び休止する
-    // ことがあるため、ユーザー操作中に短い無音を再生して確実に解除する。
-    const oscillator = audioContext.createOscillator();
-    const gain = audioContext.createGain();
-    gain.gain.value = 0.0001;
-    oscillator.connect(gain).connect(audioContext.destination);
-    oscillator.start();
-    oscillator.stop(audioContext.currentTime + .02);
+      // iOSのホーム画面版では、長時間無音だとAudioContextが再び休止する
+      // ことがあるため、ユーザー操作中に短い無音を再生して確実に解除する。
+      const oscillator = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      gain.gain.value = 0.0001;
+      oscillator.connect(gain).connect(audioContext.destination);
+      oscillator.start();
+      oscillator.stop(audioContext.currentTime + .02);
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   function startAudioKeepAlive() {
@@ -196,25 +268,40 @@
     oscillator.start(start); oscillator.stop(start + .12);
   }
 
-  async function beepRepeated() {
-    if (!audioContext) return;
-    try {
-      if (audioContext.state !== 'running') await audioContext.resume();
-    } catch (_) {}
-    stopAudioKeepAlive();
-    if (audioContext.state !== 'running') return;
-    const now = audioContext.currentTime + .04;
+  async function playAlarm({ vibrate = false } = {}) {
     const repeatCount = Number(alarmRepeat.value);
-    const beepOffsets = [];
     const vibrationPattern = [];
-    for (let repeat = 0; repeat < repeatCount; repeat++) {
-      const groupStart = repeat * .82;
-      beepOffsets.push(groupStart, groupStart + .16, groupStart + .32);
+    const vibrationRepeats = repeatCount === 0 ? 1 : repeatCount;
+    for (let repeat = 0; repeat < vibrationRepeats; repeat++) {
       if (repeat > 0) vibrationPattern.push(400);
       vibrationPattern.push(90, 70, 90, 70, 90);
     }
-    beepOffsets.forEach(offset => beep(now + offset));
-    if (navigator.vibrate) navigator.vibrate(vibrationPattern);
+    if (vibrate && navigator.vibrate) navigator.vibrate(vibrationPattern);
+    if (repeatCount === 0 || !audioContext) return;
+    try {
+      if (audioContext.state !== 'running') await audioContext.resume();
+    } catch (_) {}
+    if (audioContext.state !== 'running') return;
+    const now = audioContext.currentTime + .04;
+    for (let repeat = 0; repeat < repeatCount; repeat++) {
+      const groupStart = repeat * .82;
+      beep(now + groupStart);
+      beep(now + groupStart + .16);
+      beep(now + groupStart + .32);
+    }
+  }
+
+  async function previewCurrentAlarm() {
+    const repeatCount = Number(alarmRepeat.value);
+    if (repeatCount === 0 || previewAlarm.disabled) return;
+    previewAlarm.disabled = true;
+    try {
+      await primeAudio();
+      await playAlarm();
+    } finally {
+      clearTimeout(previewTimeout);
+      previewTimeout = window.setTimeout(() => { previewAlarm.disabled = false; }, ((repeatCount - 1) * 820) + 500);
+    }
   }
 
   async function acquireWakeLock() {
@@ -235,27 +322,110 @@
     cancelAnimationFrame(frame);
     if (running) {
       hasStarted = true;
+      timerState = 'running';
       endAt = performance.now() + remainingMs;
+      endAtEpochMs = Date.now() + remainingMs;
       startAudioKeepAlive();
       acquireWakeLock();
+      saveTimerState();
       tick();
     } else {
       remainingMs = Math.max(0, endAt - performance.now());
+      timerState = 'paused';
+      endAt = 0;
+      endAtEpochMs = 0;
       stopAudioKeepAlive();
       releaseWakeLock();
       render();
+      saveTimerState();
     }
   }
 
   function doReset() {
     running = false;
+    timerState = 'idle';
     cancelAnimationFrame(frame);
     stopAudioKeepAlive();
     releaseWakeLock();
     selectedMinutes = 0;
     remainingMs = 0;
+    endAt = 0;
+    endAtEpochMs = 0;
     hasStarted = false;
     render();
+    saveTimerState();
+  }
+
+  function restoreTimerState() {
+    const saved = readSavedTimerState();
+    if (!saved) return false;
+    selectedMinutes = saved.selectedMinutes;
+    remainingMs = saved.remainingMs;
+    timerState = saved.state;
+    hasStarted = timerState !== 'idle';
+
+    if (timerState === 'running') {
+      const restoredRemainingMs = Math.min(TOTAL_MS, Math.max(0, saved.endAtEpochMs - Date.now()));
+      if (restoredRemainingMs <= 0) {
+        running = false;
+        timerState = 'finished';
+        remainingMs = 0;
+        endAtEpochMs = 0;
+        render();
+        saveTimerState();
+        return true;
+      }
+      running = true;
+      remainingMs = restoredRemainingMs;
+      endAtEpochMs = saved.endAtEpochMs;
+      endAt = performance.now() + remainingMs;
+      acquireWakeLock();
+      tick();
+      return true;
+    }
+
+    running = false;
+    endAt = 0;
+    endAtEpochMs = 0;
+    render();
+    return true;
+  }
+
+  function configureAuxiliaryUi() {
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    const appleMobile = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const safari = /Safari/.test(navigator.userAgent) && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(navigator.userAgent);
+    const iphoneSafari = appleMobile && safari;
+    pwaGuide.hidden = standalone || !iphoneSafari;
+    shareTools.hidden = !standalone && iphoneSafari;
+  }
+
+  function showShareFeedback(message) {
+    clearTimeout(shareFeedbackTimeout);
+    shareFeedback.textContent = message;
+    shareFeedbackTimeout = window.setTimeout(() => { shareFeedback.textContent = ''; }, 2500);
+  }
+
+  async function copyPublicUrl() {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable');
+      await navigator.clipboard.writeText(PUBLIC_URL);
+      showShareFeedback('URLをコピーしました');
+    } catch (_) {
+      showShareFeedback('URLをコピーできませんでした');
+    }
+  }
+
+  async function shareApp() {
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'みえるタイマー', url: PUBLIC_URL });
+        return;
+      } catch (error) {
+        if (error?.name === 'AbortError') return;
+      }
+    }
+    await copyPublicUrl();
   }
 
   dial.addEventListener('pointerdown', event => {
@@ -275,13 +445,20 @@
   plus.addEventListener('click', () => adjustMinutes(1));
   startPause.addEventListener('click', toggleTimer);
   reset.addEventListener('click', doReset);
+  previewAlarm.addEventListener('click', previewCurrentAlarm);
+  shareButton.addEventListener('click', shareApp);
   alarmRepeat.addEventListener('change', () => {
     try { localStorage.setItem('alarmRepeat', alarmRepeat.value); } catch (_) {}
   });
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && running) {
-      remainingMs = Math.max(0, endAt - performance.now());
+    if (document.visibilityState === 'hidden') {
+      saveTimerState();
+      return;
+    }
+    if (running) {
+      remainingMs = Math.max(0, endAtEpochMs - Date.now());
       if (remainingMs > 0) {
+        endAt = performance.now() + remainingMs;
         acquireWakeLock();
         render();
       } else {
@@ -289,12 +466,14 @@
       }
     }
   });
+  window.addEventListener('pagehide', saveTimerState);
 
   drawFace();
   try {
     const savedRepeat = localStorage.getItem('alarmRepeat');
     if (savedRepeat && alarmRepeat.querySelector(`option[value="${savedRepeat}"]`)) alarmRepeat.value = savedRepeat;
   } catch (_) {}
-  render();
+  configureAuxiliaryUi();
+  if (!restoreTimerState()) render();
   if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
 })();

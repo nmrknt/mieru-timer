@@ -60,23 +60,27 @@
         <button id="startPause" class="primary" type="button" disabled>スタート</button>
         <button id="reset" class="secondary reset" type="button">リセット</button>
       </div>
-      <label class="alarm-setting" for="alarmRepeat">
-        終了音の回数
-        <select id="alarmRepeat">
-          <option value="1">1回</option>
-          <option value="2">2回</option>
-          <option value="3" selected>3回</option>
-          <option value="4">4回</option>
-          <option value="5">5回</option>
-          <option value="6">6回</option>
-          <option value="7">7回</option>
-          <option value="8">8回</option>
-          <option value="9">9回</option>
-          <option value="10">10回</option>
-        </select>
-      </label>
+      <div class="alarm-setting">
+        <label for="alarmRepeat">終了音</label>
+        <div class="alarm-actions">
+          <select id="alarmRepeat">
+            <option value="0">鳴らさない</option>
+            <option value="1">1回</option>
+            <option value="2">2回</option>
+            <option value="3" selected>3回</option>
+            <option value="4">4回</option>
+            <option value="5">5回</option>
+            <option value="6">6回</option>
+            <option value="7">7回</option>
+            <option value="8">8回</option>
+            <option value="9">9回</option>
+            <option value="10">10回</option>
+          </select>
+          <button id="previewAlarm" class="secondary compact" type="button">試聴</button>
+        </div>
+      </div>
       <p class="hint">文字盤をタップ、または針の方向へなぞって時間を設定</p>
-      <div class="pwa-guide">
+      <div id="pwaGuide" class="pwa-guide" hidden>
         <strong>iPhoneでアプリとして使う方法</strong>
         <ol>
           <li>このページ（https://nmrknt.github.io/mieru-timer/）をSafariで開く</li>
@@ -86,6 +90,10 @@
           <li>ホーム画面の「みえるタイマー」アイコンから起動</li>
         </ol>
         <p>終了音を鳴らすには、iPhoneの消音モードを解除し、音量を上げてください。更新後も古い画面が出る場合は、Safariでこのページを再読み込みしてからアプリを開き直してください。</p>
+      </div>
+      <div id="shareTools" class="share-tools" hidden>
+        <button id="shareButton" class="secondary compact" type="button">共有</button>
+        <span id="shareFeedback" class="share-feedback" role="status" aria-live="polite"></span>
       </div>
     </section>
   </main>
